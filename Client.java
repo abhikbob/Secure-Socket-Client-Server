@@ -3,6 +3,7 @@ import javax.crypto.spec.SecretKeySpec;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
@@ -17,6 +18,38 @@ public class Client {
 
     private static SecretKeySpec secretKey;
     private static byte[] key;
+
+    public static String getHash(String input)
+    {
+        try {
+            // getInstance() method is called with algorithm SHA-512
+            MessageDigest md = MessageDigest.getInstance("SHA-512");
+
+            // digest() method is called
+            // to calculate message digest of the input string
+            // returned as array of byte
+            byte[] messageDigest = md.digest(input.getBytes());
+
+            // Convert byte array into signum representation
+            BigInteger no = new BigInteger(1, messageDigest);
+
+            // Convert message digest into hex value
+            String hashtext = no.toString(16);
+
+            // Add preceding 0s to make it 32 bit
+            while (hashtext.length() < 32) {
+                hashtext = "0" + hashtext;
+            }
+
+            // return the HashText
+            return hashtext;
+        }
+
+        // For specifying wrong message digest algorithms
+        catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
     public static void setKey(String myKey) {
         MessageDigest sha = null;
@@ -96,15 +129,18 @@ public class Client {
 
             final String secretKey = Double.toString(Adash);
             String send = "";
+            String outmsg="";
             while (true) {
                 System.out.print("\nYou: ");
-                send = sc.nextLine();
+                outmsg = sc.nextLine();
+                send = outmsg+"&&"+getHash(outmsg);
                 oos.writeObject(Server.encrypt(send, secretKey));
-                if (send.equalsIgnoreCase("exit")) break;
-                String message = (String) ois.readObject();
-                System.out.println("\nServer(Encrypted): " + message);
-                System.out.println("Server(Decrypted): " + Server.decrypt(message, secretKey));
-                if (Server.decrypt(message, secretKey).equalsIgnoreCase("exit")) break;
+                if (outmsg.equalsIgnoreCase("exit")) break;
+                String recvd = Server.decrypt((String) ois.readObject(),secretKey);
+                String[] message= recvd.split("&&");
+                if(!getHash(message[0]).equals(message[1])) System.out.println("Authentication failed!!!");
+                System.out.println("\nServer: " + message[0]);
+                if (message[0].equalsIgnoreCase("exit")) break;
             }
             ois.close();
             oos.close();
